@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Data & Logs
+logs/
+fund/data/*.sqlite3
+fund/data/*.sqlite3-journal
+fund/output/
+
+# Frontend
+fund/web/frontend/node_modules/
+fund/web/frontend/dist/
+fund/web/frontend/.DS_Store
+
+# IDE / Tools
+.idea/
+.vscode/
+.DS_Store
+.qoder/

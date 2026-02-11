@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./portfolio.json:/app/portfolio.json
+    environment:
+      - BOC_DB_PATH=/app/data/boc_nav.sqlite3
+      - BOC_PORTFOLIO_PATH=/app/portfolio.json
+    restart: unless-stopped
