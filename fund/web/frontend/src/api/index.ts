@@ -47,8 +47,49 @@ export interface CompareResponse {
   series: ProductHistory[]
 }
 
-// ---- API calls ----
-export async function fetchTop50(limit = 50, risk?: string): Promise<RankingResponse> {
+export interface TransactionItem {
+  id: number
+  product_code: string
+  date: string
+  shares: number
+  amount?: number
+  created_at: string
+}
+
+export interface DailyIncomePoint {
+  date: string
+  income: number
+  total_asset: number
+}
+
+export interface IncomeResponse {
+  series: DailyIncomePoint[]
+  total_income: number
+  current_asset: number
+}
+
+// ---- API Functions ----
+
+export async function fetchTransactions(): Promise<TransactionItem[]> {
+  const { data } = await api.get<TransactionItem[]>('/transactions')
+  return data
+}
+
+export async function addTransaction(payload: { product_code: string; date: string; shares: number; amount?: number }): Promise<TransactionItem> {
+  const { data } = await api.post<TransactionItem>('/transactions', payload)
+  return data
+}
+
+export async function deleteTransaction(id: number): Promise<void> {
+  await api.delete(`/transactions/${id}`)
+}
+
+export async function fetchIncome(): Promise<IncomeResponse> {
+  const { data } = await api.get<IncomeResponse>('/transactions/income')
+  return data
+}
+
+export async function fetchTop50(limit = 50, risk?: string, date?: string): Promise<RankingResponse> {
   const params: Record<string, any> = { limit }
   if (risk) params.risk = risk
   const { data } = await api.get<RankingResponse>('/ranking/top50', { params })

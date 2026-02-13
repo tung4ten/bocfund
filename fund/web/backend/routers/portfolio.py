@@ -18,8 +18,21 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 @router.get("", response_model=PortfolioResponse)
 def get_portfolio(db: Session = Depends(get_db)):
-    """返回持仓产品的最新指标。"""
-    codes = load_portfolio_codes()
+    """返回持仓产品的最新指标（包含 portfolio.json 配置的和数据库中有交易记录的产品）。"""
+    # 1. 从配置文件读取
+    config_codes = set(load_portfolio_codes())
+    
+    # 2. 从交易记录读取
+    try:
+        tx_rows = db.execute(text("SELECT DISTINCT product_code FROM portfolio_transactions")).fetchall()
+        tx_codes = {r[0] for r in tx_rows}
+    except Exception:
+        # 表可能不存在
+        tx_codes = set()
+        
+    # 3. 合并去重
+    codes = list(config_codes | tx_codes)
+    
     if not codes:
         return PortfolioResponse(products=[])
 
@@ -41,8 +54,9 @@ def get_portfolio(db: Session = Depends(get_db)):
 
     rows = db.execute(sql, params).fetchall()
 
-    # 按 portfolio.json 中的顺序排序
-    order = {c: i for i, c in enumerate(codes)}
+    # 按 portfolio.json 中的顺序优先排序，其余排后面
+    json_order = {c: i for i, c in enumerate(load_portfolio_codes())} # Keep original list order
+    
     items = sorted(
         [
             ProductSnapshot(
@@ -57,7 +71,7 @@ def get_portfolio(db: Session = Depends(get_db)):
             )
             for r in rows
         ],
-        key=lambda p: order.get(p.product_code, 999),
+        key=lambda p: json_order.get(p.product_code, 9999),
     )
 
     return PortfolioResponse(products=items)
@@ -65,11 +79,23 @@ def get_portfolio(db: Session = Depends(get_db)):
 
 @router.get("/history", response_model=CompareResponse)
 def get_portfolio_history(
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(30, ge=1, le=36500),
     db: Session = Depends(get_db),
 ):
     """返回持仓产品最近 N 天的历史七日年化数据（用于趋势图）。"""
-    codes = load_portfolio_codes()
+    # 1. 从配置文件读取
+    config_codes = set(load_portfolio_codes())
+    
+    # 2. 从交易记录读取
+    try:
+        tx_rows = db.execute(text("SELECT DISTINCT product_code FROM portfolio_transactions")).fetchall()
+        tx_codes = {r[0] for r in tx_rows}
+    except Exception:
+        tx_codes = set()
+        
+    # 3. 合并去重
+    codes = list(config_codes | tx_codes)
+    
     if not codes:
         return CompareResponse(series=[])
 

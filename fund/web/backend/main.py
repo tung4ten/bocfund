@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routers import portfolio, products, ranking, risk_levels
+from .routers import portfolio, products, ranking, risk_levels, transactions
 
 app = FastAPI(
     title="BOC Fund NAV Dashboard",
@@ -32,6 +32,7 @@ app.include_router(ranking.router)
 app.include_router(portfolio.router)
 app.include_router(products.router)
 app.include_router(risk_levels.router)
+app.include_router(transactions.router)
 
 
 # ---------------------------------------------------------------------------

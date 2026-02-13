@@ -31,6 +31,13 @@ const currentPath = computed(() => route.path)
             >
               趋势对比
             </router-link>
+            <router-link
+              to="/positions"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              :class="currentPath === '/positions' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'"
+            >
+              我的持仓
+            </router-link>
           </nav>
         </div>
       </div>

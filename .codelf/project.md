@@ -145,6 +145,11 @@ root (/opt/bocfound)
                                     #   选取数据充足的最近交易日（七日年化记录 >= 300）
                 - portfolio.py      # GET /api/portfolio — 持仓产品最新指标
                                     # GET /api/portfolio/history?days=N — 持仓历史趋势数据
+                - transactions.py   # ★ [新增] 持仓交易管理
+                                    #   POST /api/transactions — 添加交易记录 (份额/日期)
+                                    #   GET /api/transactions — 获取交易列表
+                                    #   GET /api/transactions/income — 计算每日收益与总资产 (支持净值型/货币型混合计算)
+                                    #   逻辑: 自动填充缺失净值(15天)，处理周末收益累积
                 - products.py       # GET /api/products/{code}/history?days=N — 单产品历史
                                     # GET /api/products/compare?codes=A,B,C&days=N — 多产品对比
                 - risk_levels.py    # ★ PUT /api/risk-levels/{product_code} — 手动设置风险等级 (R1-R5)
@@ -169,6 +174,7 @@ root (/opt/bocfound)
                                     #   类型定义: ProductSnapshot, HistoryPoint, ProductHistory 等
                 - views/
                     - Dashboard.vue # ★ 首页看板: 持仓概览卡片 + Top 50 排行表格
+                    - MyPositions.vue # ★ [新增] 我的持仓: 交易记录增删查改 + 每日收益/总资产双轴图表
                     - Compare.vue   # ★ 趋势对比: 产品选择(持仓/手动) + 时间范围 + ECharts折线图 + 数据表
                 - components/
                     - PortfolioCards.vue  # 持仓卡片组: 显示七日年化/万份收益 + 迷你趋势 sparkline
@@ -201,10 +207,20 @@ root (/opt/bocfound)
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | product_code | VARCHAR(64) | 产品代码 (PK) |
-| risk_level | VARCHAR(20) | 风险等级代码: R1, R2, R3, R4 |
-| risk_label | VARCHAR(20) | 风险等级标签: 低风险, 中低风险, 中风险, 中高风险 |
-| source | VARCHAR(20) | 数据来源: "bocwm"（中银理财官网 API）/ "manual"（手动设置） |
+| risk_level | VARCHAR(10) | 风险等级 (R1-R5) |
+| source | VARCHAR(20) | 来源 (bocwm/manual) |
 | updated_at | DATETIME | 更新时间 |
+
+表: `portfolio_transactions` (主键: id)
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | INTEGER | 自增 ID |
+| product_code | VARCHAR(64) | 产品代码 |
+| date | TEXT | 交易日期 (YYYY-MM-DD) |
+| shares | REAL | 份额 (支持小数) |
+| amount | REAL | 金额 (参考值) |
+| created_at | TIMESTAMP | 创建时间 |
 
 > BOCWM 自动同步覆盖中银理财自有产品（2,082 个）；代销产品可通过前端排行榜页面手动设置风险等级（source='manual'）。
 
