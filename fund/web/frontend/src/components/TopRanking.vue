@@ -13,7 +13,7 @@ const asOfDate = ref('')
 const loading = ref(true)
 const searchQuery = ref('')
 const selectedCodes = ref<Set<string>>(new Set())
-const riskFilter = ref('')   // '' = 全部, 'R1', 'R2', 'R3', 'R4'
+const riskFilters = ref<string[]>([]) // [] = 全部，支持多选（R1~R5 + UNDEFINED）
 
 // 风险等级编辑状态
 const editingRiskCode = ref<string | null>(null)
@@ -24,11 +24,12 @@ const expandedHistory = ref<ProductHistory | null>(null)
 const expandLoading = ref(false)
 
 const riskOptions = [
-  { value: '', label: '全部风险等级' },
   { value: 'R1', label: 'R1 低风险' },
   { value: 'R2', label: 'R2 中低风险' },
   { value: 'R3', label: 'R3 中风险' },
   { value: 'R4', label: 'R4 中高风险' },
+  { value: 'R5', label: 'R5 高风险' },
+  { value: 'UNDEFINED', label: '未定义风险等级' },
 ]
 
 const riskEditOptions = [
@@ -59,7 +60,8 @@ const riskLabelMap: Record<string, string> = {
 async function loadData() {
   loading.value = true
   try {
-    const res = await fetchTop50(200, riskFilter.value || undefined)
+    const riskParam = riskFilters.value.length ? riskFilters.value.join(',') : undefined
+    const res = await fetchTop50(200, riskParam)
     items.value = res.items
     asOfDate.value = res.as_of_date
   } finally {
@@ -89,6 +91,25 @@ function handleCompare() {
 function onRiskFilterChange() {
   selectedCodes.value = new Set()
   loadData()
+}
+
+function isRiskSelected(value: string) {
+  return riskFilters.value.includes(value)
+}
+
+function toggleRiskFilter(value: string) {
+  if (riskFilters.value.includes(value)) {
+    riskFilters.value = riskFilters.value.filter(v => v !== value)
+  } else {
+    riskFilters.value = [...riskFilters.value, value]
+  }
+  onRiskFilterChange()
+}
+
+function clearRiskFilters() {
+  if (riskFilters.value.length === 0) return
+  riskFilters.value = []
+  onRiskFilterChange()
 }
 
 // ---- 风险等级编辑 ----
@@ -179,15 +200,24 @@ onMounted(loadData)
         >
           对比所选 ({{ selectedCodes.size }})
         </button>
-        <select
-          v-model="riskFilter"
-          @change="onRiskFilterChange"
-          class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-        >
-          <option v-for="opt in riskOptions" :key="opt.value" :value="opt.value">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button
+            @click="clearRiskFilters"
+            class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="riskFilters.length === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'"
+          >
+            全部风险等级
+          </button>
+          <button
+            v-for="opt in riskOptions"
+            :key="opt.value"
+            @click="toggleRiskFilter(opt.value)"
+            class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="isRiskSelected(opt.value) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'"
+          >
             {{ opt.label }}
-          </option>
-        </select>
+          </button>
+        </div>
         <input
           v-model="searchQuery"
           type="text"

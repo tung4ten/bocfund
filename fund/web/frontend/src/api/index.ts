@@ -14,6 +14,7 @@ export interface ProductSnapshot {
   income_per_10k: number | null
   annualized_7d: number | null
   daily_growth_rate: number | null
+  day_nav_change: number | null  // Added
   as_of_date: string
   annualized_7d_source: 'direct' | 'calculated' | null
   risk_level: string | null

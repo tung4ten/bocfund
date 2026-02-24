@@ -39,40 +39,104 @@ def get_portfolio(db: Session = Depends(get_db)):
     placeholders = ",".join([f":c{i}" for i in range(len(codes))])
     params = {f"c{i}": c for i, c in enumerate(codes)}
 
-    # 取每个产品最新一条记录
+    # 取每个产品最新8条记录（通过窗口函数），用于计算7日年化
     sql = text(
-        f"SELECT r.product_code, r.product_name, r.unit_nav, r.cumulative_nav, "
-        f"       r.income_per_10k, r.annualized_7d_or_growth, r.daily_growth_rate, r.as_of_date "
-        f"FROM boc_nav_records r "
-        f"INNER JOIN ("
-        f"  SELECT product_code, MAX(as_of_date) AS max_date "
-        f"  FROM boc_nav_records "
-        f"  WHERE product_code IN ({placeholders}) "
-        f"  GROUP BY product_code"
-        f") latest ON r.product_code = latest.product_code AND r.as_of_date = latest.max_date"
+        f"""
+        WITH Ranked AS (
+            SELECT product_code, product_name, unit_nav, cumulative_nav,
+                   income_per_10k, annualized_7d_or_growth, daily_growth_rate, as_of_date,
+                   julianday(as_of_date) as jd,
+                   ROW_NUMBER() OVER (PARTITION BY product_code ORDER BY as_of_date DESC) as rn
+            FROM boc_nav_records
+            WHERE product_code IN ({placeholders})
+        )
+        SELECT * FROM Ranked WHERE rn <= 10
+        """
     )
 
-    rows = db.execute(sql, params).fetchall()
+    all_rows = db.execute(sql, params).fetchall()
 
-    # 按 portfolio.json 中的顺序优先排序，其余排后面
-    json_order = {c: i for i, c in enumerate(load_portfolio_codes())} # Keep original list order
+    # Group by product_code
+    grouped = {}
+    for r in all_rows:
+        pc = r[0]
+        if pc not in grouped:
+            grouped[pc] = []
+        grouped[pc].append(r)
     
-    items = sorted(
-        [
-            ProductSnapshot(
-                product_code=r[0],
-                product_name=r[1] or "",
-                unit_nav=r[2],
-                cumulative_nav=r[3],
-                income_per_10k=r[4],
-                annualized_7d=r[5],
-                daily_growth_rate=r[6],
-                as_of_date=r[7],
-            )
-            for r in rows
-        ],
-        key=lambda p: json_order.get(p.product_code, 9999),
-    )
+    # 按 portfolio.json 中的顺序优先排序，其余排后面
+    json_order = {c: i for i, c in enumerate(load_portfolio_codes())} 
+    
+    items = []
+    for code in codes:
+        if code not in grouped: continue
+        
+        recs = grouped[code]
+        # recs[0] is latest (rn=1)
+        curr = recs[0]
+        # curr tuple index: 
+        # 0:code, 1:name, 2:unit, 3:cum, 4:inc, 5:ann7d, 6:day_growth, 7:date, 8:jd, 9:rn
+        
+        prev = recs[1] if len(recs) > 1 else None
+        
+        # 1. Calculate Day NAV Change
+        day_change = None
+        if prev:
+            # Priority: cumulative_nav diff, else unit_nav diff
+            if curr[3] is not None and prev[3] is not None:
+                day_change = float(curr[3]) - float(prev[3])
+            elif curr[2] is not None and prev[2] is not None:
+                day_change = float(curr[2]) - float(prev[2])
+        
+        # 2. Calculate Annualized 7D if missing
+        ann_7d = curr[5]
+        ann_source = "direct" if ann_7d is not None else None
+        
+        if ann_7d is None and curr[3] is not None:
+            # Find a record closest to 7 days ago (between 4 and 10 days ago)
+            curr_jd = curr[8]
+            best_past = None
+            min_diff = 999
+            
+            for past_rec in recs[1:]:
+                past_jd = past_rec[8]
+                days_diff = curr_jd - past_jd
+                if 4 <= days_diff <= 25 and past_rec[3] is not None:
+                    diff_from_7 = abs(days_diff - 7)
+                    if diff_from_7 < min_diff:
+                        min_diff = diff_from_7
+                        best_past = past_rec
+                        best_days_diff = days_diff
+            
+            if best_past:
+                past_cum = float(best_past[3])
+                curr_cum = float(curr[3])
+                if past_cum > 0:
+                    ann_7d = (curr_cum - past_cum) / past_cum * (365.0 / best_days_diff) * 100
+                    ann_source = "calculated"
+                    
+        # 3. Simulate Income Per 10k for Net Value products (if missing)
+        # Definition: Profit for 10,000 units.
+        # If unit_nav ~ 1.0, then 10,000 units ~ 10,000 RMB principal.
+        inc_10k = curr[4]
+        if (inc_10k is None or inc_10k == 0) and day_change is not None:
+             # Use the calculated day_change (which is per unit) * 10000
+             inc_10k = day_change * 10000.0
+
+        items.append(ProductSnapshot(
+            product_code=curr[0],
+            product_name=curr[1] or "",
+            unit_nav=curr[2],
+            cumulative_nav=curr[3],
+            income_per_10k=inc_10k,
+            annualized_7d=ann_7d,
+            daily_growth_rate=curr[6],
+            as_of_date=curr[7],
+            day_nav_change=day_change,
+            annualized_7d_source=ann_source
+        ))
+        
+    items.sort(key=lambda p: json_order.get(p.product_code, 9999))
 
     return PortfolioResponse(products=items)
 

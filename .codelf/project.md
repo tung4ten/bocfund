@@ -138,12 +138,15 @@ root (/opt/bocfound)
                                     #   load_portfolio_codes(): 实时读取持仓代码列表
             - schemas.py            # Pydantic 响应模型: ProductSnapshot(含 risk_level, annualized_7d_source),
                                     #   RankingResponse, HistoryPoint, ProductHistory, PortfolioResponse, CompareResponse
-            - routers/
+                - routers/
                 - __init__.py
-                - ranking.py        # GET /api/ranking/top50?risk=R1,R2&limit=50
-                                    #   合并直接提供 + 净值计算的七日年化，支持风险等级筛选
-                                    #   选取数据充足的最近交易日（七日年化记录 >= 300）
+                - ranking.py        # GET /api/ranking/top50?risk=R1,R2,UNDEFINED&limit=50
+                                    #   合并直接提供 + 净值计算的七日年化，支持风险等级多选筛选
+                                    #   每个产品按最新可用日期参与排行（节假日无当日净值也可正常更新）
                 - portfolio.py      # GET /api/portfolio — 持仓产品最新指标
+                                    #   逻辑增强: 自动回溯计算缺失的七日年化 (Net Value)
+                                    #   逻辑增强: 自动计算当日净值增量 (day_nav_change)
+                                    #   逻辑增强: 自动模拟万份收益 (Net Value fallback)
                                     # GET /api/portfolio/history?days=N — 持仓历史趋势数据
                 - transactions.py   # ★ [新增] 持仓交易管理
                                     #   POST /api/transactions — 添加交易记录 (份额/日期)
@@ -178,9 +181,11 @@ root (/opt/bocfound)
                     - Compare.vue   # ★ 趋势对比: 产品选择(持仓/手动) + 时间范围 + ECharts折线图 + 数据表
                 - components/
                     - PortfolioCards.vue  # 持仓卡片组: 显示七日年化/万份收益 + 迷你趋势 sparkline
-                    - TopRanking.vue     # 排行表: 风险等级筛选下拉 + 搜索/勾选/对比，显示来源标签
+                    - TopRanking.vue     # 排行表: 风险等级多选筛选（含"未定义"）+ 搜索/勾选/对比，显示来源标签
                                          #   ★ 风险列可点击编辑：已有等级点击修改，无等级点击"+"添加
+                                         #   ★ 点击行可展开近30天净值趋势面板
                     - TrendChart.vue     # ECharts 多产品七日年化折线图（支持缩放）
+                    - NavTrendChart.vue  # ★ [新增] 净值趋势图：单产品净值曲线 + 多产品归一化基准100对比
 ```
 
 
@@ -222,7 +227,7 @@ root (/opt/bocfound)
 | amount | REAL | 金额 (参考值) |
 | created_at | TIMESTAMP | 创建时间 |
 
-> BOCWM 自动同步覆盖中银理财自有产品（2,082 个）；代销产品可通过前端排行榜页面手动设置风险等级（source='manual'）。
+> BOCWM 自动同步覆盖中银理财自有产品（2,082 个）；代销产品可通过前端排行榜页面手动设置风险等级（source='manual'）。排行筛选支持多选风险等级及"未定义风险等级"。
 
 ### 产品分类
 

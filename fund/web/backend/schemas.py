@@ -14,6 +14,7 @@ class ProductSnapshot(BaseModel):
     income_per_10k: Optional[float] = None
     annualized_7d: Optional[float] = None
     daily_growth_rate: Optional[float] = None
+    day_nav_change: Optional[float] = None      # New: Absolute change in NAV (Unit or Cumulative)
     as_of_date: date
     annualized_7d_source: Optional[str] = None  # "direct" | "calculated" | None
     risk_level: Optional[str] = None            # "R1" | "R2" | "R3" | "R4" | "R5" | None

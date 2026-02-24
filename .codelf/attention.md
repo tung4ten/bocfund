@@ -71,7 +71,7 @@ fund/
   - 排行: `{ as_of_date, items: ProductSnapshot[] }`
   - 持仓: `{ products: ProductSnapshot[] }`
   - 历史/对比: `{ series: ProductHistory[] }`
-- Query 参数: `days`(天数范围), `limit`(条数), `codes`(逗号分隔产品代码), `risk`(风险等级筛选如 R1,R2), `source`(风险等级来源筛选)
+- Query 参数: `days`(天数范围), `limit`(条数), `codes`(逗号分隔产品代码), `risk`(风险等级筛选如 `R1,R2,UNDEFINED`，支持多选), `source`(风险等级来源筛选)
 - 风险等级 API: `PUT /api/risk-levels/{code}` (body: `{risk_level: "R1"}`), `DELETE /api/risk-levels/{code}`, `GET /api/risk-levels?source=manual`
 
 **Data Flow:**
@@ -104,7 +104,8 @@ fund/
 **排行榜七日年化数据来源:**
 - `source=direct`: 现金管理类产品，直接读取 `annualized_7d_or_growth` 字段
 - `source=calculated`: 净值型产品，通过 `(最新净值 - 7天前净值) / 7天前净值 × (365/天数) × 100` 计算
-- 排行日期选取: 取最近一个七日年化直接记录数 >= 300 的交易日，避免假期/周末数据不全
+- 排行计算方式: 每个产品取其最新可用日期数据参与排行，不要求全站同一天都有净值（节假日后仍可准确更新）
+- 风险筛选: 支持 `R1~R5` 与 `UNDEFINED`（未定义风险）组合筛选
 
 **风险等级数据:**
 - 自动来源: 中银理财官网 API (`bocwm.cn`)，覆盖中银理财自有产品 (2,082 个)，`source='bocwm'`

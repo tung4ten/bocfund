@@ -50,6 +50,17 @@ function miniChartOption(code: string) {
   }
 }
 
+function formatNavChange(val: number | null) {
+  if (val == null) return '-'
+  const s = val.toFixed(4)
+  return val > 0 ? `+${s}` : s
+}
+
+function getNavChangeClass(val: number | null) {
+  if (val == null || val === 0) return 'text-gray-500'
+  return val > 0 ? 'text-red-500' : 'text-green-500'
+}
+
 function handleCompareAll() {
   emit('compare', products.value.map(p => p.product_code))
 }
@@ -97,10 +108,18 @@ onMounted(loadData)
               {{ p.annualized_7d != null ? p.annualized_7d.toFixed(4) + '%' : '-' }}
             </div>
           </div>
-          <div class="text-right">
-            <div class="text-xs text-gray-500 mb-0.5">万份收益</div>
-            <div class="text-lg font-semibold text-gray-700">
-              {{ p.income_per_10k != null ? p.income_per_10k.toFixed(5) : '-' }}
+          <div class="text-right flex flex-col items-end">
+            <div class="mb-0.5">
+              <span class="text-xs text-gray-400 mr-1">万份</span>
+              <span class="text-base font-semibold text-gray-700">
+                {{ p.income_per_10k != null ? p.income_per_10k.toFixed(4) : '-' }}
+              </span>
+            </div>
+            <div>
+              <span class="text-xs text-gray-400 mr-1">增量</span>
+              <span class="text-base font-semibold" :class="getNavChangeClass(p.day_nav_change)">
+                {{ formatNavChange(p.day_nav_change) }}
+              </span>
             </div>
           </div>
         </div>
