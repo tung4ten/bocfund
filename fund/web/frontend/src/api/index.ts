@@ -63,10 +63,20 @@ export interface DailyIncomePoint {
   total_asset: number
 }
 
+export interface HoldingDetail {
+  product_code: string
+  product_name: string
+  shares: number
+  amount: number
+  today_income: number
+  as_of_date: string
+}
+
 export interface IncomeResponse {
   series: DailyIncomePoint[]
   total_income: number
   current_asset: number
+  holdings: HoldingDetail[]
 }
 
 // ---- API Functions ----

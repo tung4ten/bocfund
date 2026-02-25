@@ -182,6 +182,39 @@ onMounted(refresh)
       </div>
     </div>
 
+    <!-- Holdings Detail Table -->
+    <div v-if="incomeData && incomeData.holdings && incomeData.holdings.length > 0" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 font-semibold text-gray-800">当前持仓明细</div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-gray-50 text-gray-500 font-medium">
+            <tr>
+              <th class="px-6 py-3">产品名称</th>
+              <th class="px-6 py-3">产品代码</th>
+              <th class="px-6 py-3 text-right">持有份额</th>
+              <th class="px-6 py-3 text-right">估算金额(CNY)</th>
+              <th class="px-6 py-3 text-right">今日收益(CNY)</th>
+              <th class="px-6 py-3 text-right">数据日期</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="h in incomeData.holdings" :key="h.product_code" class="border-t border-gray-50 hover:bg-gray-50">
+              <td class="px-6 py-3 font-medium text-gray-900">{{ h.product_name }}</td>
+              <td class="px-6 py-3 text-gray-500 font-mono">{{ h.product_code }}</td>
+              <td class="px-6 py-3 text-right font-mono">{{ h.shares.toLocaleString() }}</td>
+              <td class="px-6 py-3 text-right font-bold text-gray-800">
+                {{ h.amount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}
+              </td>
+              <td class="px-6 py-3 text-right font-bold" :class="h.today_income >= 0 ? 'text-red-600' : 'text-green-600'">
+                {{ h.today_income > 0 ? '+' : '' }}{{ h.today_income.toFixed(2) }}
+              </td>
+              <td class="px-6 py-3 text-right text-gray-400 text-xs">{{ h.as_of_date }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Transaction List -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 font-semibold">交易记录</div>

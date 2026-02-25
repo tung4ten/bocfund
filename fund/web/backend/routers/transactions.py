@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import datetime
@@ -9,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import get_db
+from boc_scraper.exchange_rate import get_exchange_rates
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -38,10 +40,20 @@ class DailyIncomePoint(BaseModel):
     total_asset: float
 
 
+class HoldingDetail(BaseModel):
+    product_code: str
+    product_name: str
+    shares: float
+    amount: float
+    today_income: float
+    as_of_date: str
+
+
 class IncomeResponse(BaseModel):
     series: List[DailyIncomePoint]
     total_income: float
     current_asset: float
+    holdings: List[HoldingDetail] = []
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +170,7 @@ def get_daily_income(db: Session = Depends(get_db)):
     placeholders = ",".join([f"'{c}'" for c in product_codes])
     nav_rows = db.execute(
         text(f"""
-        SELECT product_code, as_of_date, unit_nav, cumulative_nav, income_per_10k 
+        SELECT product_code, as_of_date, unit_nav, cumulative_nav, income_per_10k, product_name
         FROM boc_nav_records 
         WHERE product_code IN ({placeholders}) 
           AND as_of_date >= :start
@@ -170,10 +182,16 @@ def get_daily_income(db: Session = Depends(get_db)):
     # 4. Build NAV map
     # map[code][date] = { ... }
     nav_map = {}
+    product_names = {}
     for r in nav_rows:
-        code, date_str, unit, cum, inc = r
+        code, date_str, unit, cum, inc, name = r
         if code not in nav_map:
             nav_map[code] = {}
+        
+        # Update product_names with the MOST RECENT name (non-empty)
+        if name and name.strip():
+            product_names[code] = name
+            
         # Force date to string to ensure matching with d_str
         nav_map[code][str(date_str)] = {
             "unit": unit, 
@@ -202,6 +220,11 @@ def get_daily_income(db: Session = Depends(get_db)):
 
     total_income_accum = 0.0
     
+    # Fetch exchange rate once
+    rates = get_exchange_rates()
+    usd_rate = rates.get("USD", 7.25)
+    cad_rate = rates.get("CAD", 5.10)
+    
     while current_date <= end_date:
         d_str = current_date.isoformat()
         
@@ -224,12 +247,23 @@ def get_daily_income(db: Session = Depends(get_db)):
             p_data = nav_map.get(code, {})
             today_nav = p_data.get(d_str)
             
+            name = product_names.get(code, "")
+            is_usd = "美元" in name or "USD" in name
+            is_cad = "加元" in name or "CAD" in name
+            
+            rate = 1.0
+            if is_usd:
+                rate = usd_rate
+            elif is_cad:
+                rate = cad_rate
+            
             # Debug log for a problematic date
             # if d_str == '2026-02-09':
             #     print(f"DEBUG {d_str}: {code} shares={shares} has_nav={today_nav is not None}")
             
             # --- Income Calculation ---
             # We calculate income if we have today's NAV
+            pnl_native = 0.0
             if today_nav:
                 # 1. Money Market (Income per 10k)
                 # FIX: Only use MM logic if 'inc' is present AND non-zero.
@@ -237,7 +271,7 @@ def get_daily_income(db: Session = Depends(get_db)):
                 if today_nav.get('inc') is not None and float(today_nav['inc']) != 0:
                     # Daily income = Shares * Inc / 10000
                     inc_val = shares * float(today_nav['inc']) / 10000.0
-                    daily_pnl += inc_val
+                    pnl_native = inc_val
                     
                     # Auto-reinvest for MM: Add income as new shares
                     unit_val = 1.0
@@ -263,7 +297,9 @@ def get_daily_income(db: Session = Depends(get_db)):
                     if prev_nav_val is not None:
                         # Income = Shares * (Today_Cum - Prev_Cum)
                         diff = float(today_nav['cum']) - prev_nav_val
-                        daily_pnl += shares * diff
+                        pnl_native = shares * diff
+            
+            daily_pnl += pnl_native * rate
         
         # 3. Update Holdings (End of Day)
         # a) Apply Transactions
@@ -286,27 +322,116 @@ def get_daily_income(db: Session = Depends(get_db)):
             # Effective NAV lookup (Fill Forward)
             effective_nav = p_data.get(d_str)
             if not effective_nav:
-                for back in range(1, 15):
+                for back in range(1, 30):
                     bd = (current_date - datetime.timedelta(days=back)).isoformat()
                     if bd in p_data:
                         effective_nav = p_data[bd]
                         break
             
+            val = 0.0
             if effective_nav:
                 if effective_nav['unit'] is not None:
-                    total_asset_today += shares * float(effective_nav['unit'])
+                    val = shares * float(effective_nav['unit'])
                 elif effective_nav['cum'] is not None:
-                    total_asset_today += shares * float(effective_nav['cum'])
+                    val = shares * float(effective_nav['cum'])
+            
+            # Apply FX Rate
+            name = product_names.get(code, "")
+            is_usd = "美元" in name or "USD" in name
+            is_cad = "加元" in name or "CAD" in name
+            
+            rate = 1.0
+            if is_usd:
+                rate = usd_rate
+            elif is_cad:
+                rate = cad_rate
+            
+            total_asset_today += val * rate
 
         # 5. Record Data Point
-        if total_asset_today > 0:
-             series.append(DailyIncomePoint(date=d_str, income=daily_pnl, total_asset=total_asset_today))
-             total_income_accum += daily_pnl
-            
-        current_date += datetime.timedelta(days=1)
+        total_income_accum += daily_pnl
+        
+        series.append(DailyIncomePoint(
+            date=d_str,
+            income=daily_pnl, # Should be DAILY income
+            total_asset=total_asset_today
+        ))
+        
+        # If it's the last day, build holdings details
+        holdings_details = []
+        if current_date == end_date:
+            for code, shares in holdings.items():
+                if shares == 0: continue
+                
+                name = product_names.get(code, "Unknown")
+                p_data = nav_map.get(code, {})
+                
+                # Today's income for this product
+                # We need to calculate it specifically for the last day
+                # Find the LATEST available NAV record, not just today's
+                today_nav = p_data.get(d_str)
+                latest_nav_date = d_str
+                
+                # If no NAV for today, search backwards for the most recent one (up to 30 days)
+                if not today_nav:
+                    for back in range(1, 30):
+                        bd = (current_date - datetime.timedelta(days=back)).isoformat()
+                        if bd in p_data:
+                            today_nav = p_data[bd]
+                            latest_nav_date = bd
+                            break
+                
+                # FX Rate
+                is_usd = "美元" in name or "USD" in name
+                is_cad = "加元" in name or "CAD" in name
+                rate = 1.0
+                if is_usd: rate = usd_rate
+                elif is_cad: rate = cad_rate
+                
+                today_pnl_native = 0.0
+                effective_nav_val = 0.0
+                nav_date = latest_nav_date
+                
+                if today_nav:
+                    # Logic 1: Income per 10k (Money Market)
+                    if today_nav.get('inc') is not None and float(today_nav['inc']) != 0:
+                        today_pnl_native = shares * float(today_nav['inc']) / 10000.0
+                        effective_nav_val = float(today_nav.get('unit') or today_nav.get('cum') or 1.0)
+                    
+                    # Logic 2: Net Value Change (Fund)
+                    elif today_nav.get('cum') is not None:
+                        # Find the PREVIOUS valid NAV record relative to `latest_nav_date`
+                        prev_nav_val = None
+                        latest_date_obj = datetime.date.fromisoformat(latest_nav_date)
+                        
+                        for lookback in range(1, 30):
+                            p_d = (latest_date_obj - datetime.timedelta(days=lookback)).isoformat()
+                            if p_d in p_data and p_data[p_d].get('cum') is not None:
+                                prev_nav_val = float(p_data[p_d]['cum'])
+                                break
+                        
+                        if prev_nav_val is not None:
+                            today_pnl_native = shares * (float(today_nav['cum']) - prev_nav_val)
+                        
+                        effective_nav_val = float(today_nav['cum'])
+                else:
+                    # Fallback if absolutely no NAV found in recent history (shouldn't happen with fill-forward above)
+                    effective_nav_val = 0.0
 
+                holdings_details.append(HoldingDetail(
+                    product_code=code,
+                    product_name=name,
+                    shares=round(shares, 4),
+                    amount=round(shares * effective_nav_val * rate, 2),
+                    today_income=round(today_pnl_native * rate, 2),
+                    as_of_date=nav_date
+                ))
+
+        current_date += datetime.timedelta(days=1)
+    
     return IncomeResponse(
         series=series,
         total_income=total_income_accum,
-        current_asset=series[-1].total_asset if series else 0.0
+        current_asset=series[-1].total_asset if series else 0.0,
+        holdings=holdings_details
     )
