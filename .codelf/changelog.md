@@ -16,12 +16,17 @@
     - **Fill-Forward Strategy**: Automatically fills missing NAV data (up to 15 days) to prevent asset curve "cliffs" on weekends or holidays.
     - **Hybrid Calculation**: Correctly handles products with missing `income_per_10k` fields by falling back to NAV difference logic.
 - **Dashboard Integration**: Portfolio summary on the dashboard now automatically includes products from transaction records.
+- **Lockup Period Parsing**: Frontend API now derives lockup period text/days from product name keywords.
 
 ### Fixed
 - **Income Discrepancy**: Fixed a critical bug where Net Value products were ignored in income calculation if they lacked `income_per_10k` data. Now correctly uses `cumulative_nav` difference.
 - **Asset Drop**: Resolved an issue where total asset value dropped to zero on non-trading days by implementing a 15-day lookback for NAV data.
 - **Project Structure**: Updated project documentation to reflect new modules (`transactions.py`, `MyPositions.vue`).
+- **Advanced Ranking**: Fixed incorrect import path that prevented `/api/ranking/advanced` from working, and added unit NAV fallback for period return calculation.
+- **Product History**: Use latest available NAV date as the window anchor for history queries.
+- **Routing**: Registered product history routes so Advanced Ranking can load trends.
 
 ### Changed
 - **Portfolio Logic**: `portfolio.py` now merges static `portfolio.json` codes with dynamic transaction codes for a unified view.
 - **Cleanup**: Removed hardcoded default products from `portfolio.json` to show only user-specific holdings.
+- **Advanced Ranking**: Backend now合并风险等级并返回区间天数，前端展示风险、区间与净值指标。

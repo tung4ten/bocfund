@@ -1,61 +1,52 @@
-from __future__ import annotations
-
-import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import portfolio, products, ranking, risk_levels, transactions
+from .config import FRONTEND_DIST_DIR, get_db
+from .routers import ranking, advanced_ranking, products, portfolio, transactions, risk_levels
 
-app = FastAPI(
-    title="BOC Fund NAV Dashboard",
-    description="中国银行代销理财产品净值数据看板 API",
-    version="1.0.0",
-)
+app = FastAPI()
 
-# ---------------------------------------------------------------------------
-# CORS – 开发模式允许 Vite dev server (localhost:5173)
-# ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------------------------------
-# API routers
-# ---------------------------------------------------------------------------
 app.include_router(ranking.router)
-app.include_router(portfolio.router)
+app.include_router(advanced_ranking.router)
 app.include_router(products.router)
-app.include_router(risk_levels.router)
+app.include_router(portfolio.router)
 app.include_router(transactions.router)
+app.include_router(risk_levels.router)
+
+dist_dir = Path(FRONTEND_DIST_DIR)
+assets_dir = dist_dir / "assets"
+if assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
-# ---------------------------------------------------------------------------
-# 生产模式：托管前端静态文件
-# ---------------------------------------------------------------------------
-from .config import FRONTEND_DIST_DIR
+@app.get("/{full_path:path}")
+def spa_fallback(full_path: str):
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    index_file = dist_dir / "index.html"
+    candidate = dist_dir / full_path
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(candidate)
+    if index_file.exists():
+        return FileResponse(index_file)
+    return {"detail": "Frontend not built"}
 
-_dist = Path(FRONTEND_DIST_DIR)
-if _dist.is_dir():
-    # SPA fallback: serve index.html for any non-API route
-    from fastapi.responses import FileResponse
+@app.on_event("startup")
+def startup():
+    pass
 
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(str(_dist / "index.html"))
-
-    # 静态资源
-    app.mount("/assets", StaticFiles(directory=str(_dist / "assets")), name="assets")
-
-    # SPA catch-all (must be last)
-    @app.get("/{full_path:path}")
-    async def spa_fallback(full_path: str):
-        file_path = _dist / full_path
-        if file_path.is_file():
-            return FileResponse(str(file_path))
-        return FileResponse(str(_dist / "index.html"))
+@app.on_event("shutdown")
+def shutdown():
+    pass

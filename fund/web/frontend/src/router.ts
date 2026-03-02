@@ -18,6 +18,11 @@ const router = createRouter({
       name: 'positions',
       component: () => import('./views/MyPositions.vue'),
     },
+    {
+      path: '/advanced-ranking',
+      name: 'advanced-ranking',
+      component: () => import('./views/AdvancedRanking.vue'),
+    },
   ],
 })
 

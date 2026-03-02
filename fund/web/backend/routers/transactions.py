@@ -10,9 +10,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import get_db
-from boc_scraper.exchange_rate import get_exchange_rates
+from fund.boc_scraper.exchange_rate import get_exchange_rates
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
+
+def normalize_code(value: str) -> str:
+    return value.strip().upper()
 
 # ---------------------------------------------------------------------------
 # Models
@@ -96,7 +99,7 @@ def list_transactions(db: Session = Depends(get_db)):
     ).fetchall()
     return [
         TransactionItem(
-            id=r[0], product_code=r[1], date=r[2], shares=r[3], amount=r[4], created_at=str(r[5])
+            id=r[0], product_code=normalize_code(r[1]), date=r[2], shares=r[3], amount=r[4], created_at=str(r[5])
         )
         for r in rows
     ]
@@ -105,6 +108,9 @@ def list_transactions(db: Session = Depends(get_db)):
 @router.post("", response_model=TransactionItem)
 def add_transaction(item: TransactionInput, db: Session = Depends(get_db)):
     ensure_table(db)
+    code = normalize_code(item.product_code)
+    if not code:
+        raise HTTPException(status_code=400, detail="Product code cannot be empty")
     # Basic validation
     try:
         datetime.date.fromisoformat(item.date)
@@ -113,7 +119,7 @@ def add_transaction(item: TransactionInput, db: Session = Depends(get_db)):
 
     cursor = db.execute(
         text("INSERT INTO portfolio_transactions (product_code, date, shares, amount) VALUES (:code, :date, :shares, :amount)"),
-        {"code": item.product_code, "date": item.date, "shares": item.shares, "amount": item.amount or 0.0},
+        {"code": code, "date": item.date, "shares": item.shares, "amount": item.amount or 0.0},
     )
     db.commit()
     new_id = cursor.lastrowid
@@ -125,7 +131,7 @@ def add_transaction(item: TransactionInput, db: Session = Depends(get_db)):
     ).fetchone()
     
     return TransactionItem(
-        id=row[0], product_code=row[1], date=row[2], shares=row[3], amount=row[4], created_at=str(row[5])
+        id=row[0], product_code=normalize_code(row[1]), date=row[2], shares=row[3], amount=row[4], created_at=str(row[5])
     )
 
 
@@ -144,10 +150,17 @@ def get_daily_income(db: Session = Depends(get_db)):
     ensure_table(db)
     
     # 1. Get all transactions
-    tx_rows = db.execute(
+    raw_rows = db.execute(
         text("SELECT product_code, date, shares, amount FROM portfolio_transactions ORDER BY date ASC")
     ).fetchall()
-    
+
+    tx_rows = []
+    for r in raw_rows:
+        code = normalize_code(r[0])
+        if not code:
+            continue
+        tx_rows.append((code, r[1], r[2], r[3]))
+
     if not tx_rows:
         return IncomeResponse(series=[], total_income=0, current_asset=0)
 

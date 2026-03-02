@@ -129,17 +129,18 @@ root (/opt/bocfound)
                                     #   export_to_excel(): 输出行=产品、列=日期、值=累计净值的 pivot 表
                                     #   自动追加日期后缀到文件名
     - web/                          # ★ Web 看板模块（新增）
-        - __init__.py
+                - __init__.py
         - backend/                  # FastAPI 后端
-            - __init__.py
+                    - __init__.py
             - main.py               # ★ FastAPI 入口: 挂载 API 路由 + CORS + 生产环境 SPA 静态文件托管
+                                    #   包含 /api/products 历史趋势接口路由
             - config.py             # ★ 配置中心: DB 路径/引擎、portfolio.json 读取、前端 dist 路径
                                     #   get_db(): FastAPI 依赖注入（每请求一个 Session）
                                     #   load_portfolio_codes(): 实时读取持仓代码列表
             - schemas.py            # Pydantic 响应模型: ProductSnapshot(含 risk_level, annualized_7d_source),
                                     #   RankingResponse, HistoryPoint, ProductHistory, PortfolioResponse, CompareResponse
                 - routers/
-                - __init__.py
+                    - __init__.py
                 - ranking.py        # GET /api/ranking/top50?risk=R1,R2,UNDEFINED&limit=50
                                     #   合并直接提供 + 净值计算的七日年化，支持风险等级多选筛选
                                     #   每个产品按最新可用日期参与排行（节假日无当日净值也可正常更新）
@@ -153,7 +154,9 @@ root (/opt/bocfound)
                                     #   GET /api/transactions — 获取交易列表
                                     #   GET /api/transactions/income — 计算每日收益与总资产 (支持净值型/货币型混合计算)
                                     #   逻辑: 自动填充缺失净值(15天)，处理周末收益累积
+                - advanced_ranking.py # ★ [新增] GET /api/ranking/advanced?time_period_days=90 — 高级排名（按区间计算年化并附带 period_days 与风险等级）
                 - products.py       # GET /api/products/{code}/history?days=N — 单产品历史
+                                    #   使用产品最新净值日期作为时间窗口基准
                                     # GET /api/products/compare?codes=A,B,C&days=N — 多产品对比
                 - risk_levels.py    # ★ PUT /api/risk-levels/{product_code} — 手动设置风险等级 (R1-R5)
                                     #   DELETE /api/risk-levels/{product_code} — 删除风险等级
@@ -175,10 +178,18 @@ root (/opt/bocfound)
                                     #   fetchPortfolioHistory, fetchProductHistory, fetchCompare,
                                     #   setRiskLevel, deleteRiskLevel
                                     #   类型定义: ProductSnapshot, HistoryPoint, ProductHistory 等
+                                    #   解析产品名中的封闭/持有期关键词并填充 lockup_period_* 字段
+                    #   parseLockupPeriod(): 覆盖日开/中文数字月份/括号内期限/关键词±数字 11种模式
+                    #   注: 月月开/季季开/开放式为赎回频率词，不解析为封闭期
                 - views/
                     - Dashboard.vue # ★ 首页看板: 持仓概览卡片 + Top 50 排行表格
                     - MyPositions.vue # ★ [新增] 我的持仓: 交易记录增删查改 + 每日收益/总资产双轴图表
                     - Compare.vue   # ★ 趋势对比: 产品选择(持仓/手动) + 时间范围 + ECharts折线图 + 数据表
+                - views/
+                    - AdvancedRanking.vue # ★ [新增] 高级排名: 展示区间天数/封闭期限/年化收益/风险等级与净值数据
+                                         #   ★ 风险等级多选筛选（含"未定义风险等级"）
+                                         #   ★ 封闭期限多选筛选（含"未定义期限"）
+                                         #   ★ 分页显示（每页100条），解决大数据量卡顿
                 - components/
                     - PortfolioCards.vue  # 持仓卡片组: 显示七日年化/万份收益 + 迷你趋势 sparkline
                     - TopRanking.vue     # 排行表: 风险等级多选筛选（含"未定义"）+ 搜索/勾选/对比，显示来源标签
@@ -227,7 +238,7 @@ root (/opt/bocfound)
 | amount | REAL | 金额 (参考值) |
 | created_at | TIMESTAMP | 创建时间 |
 
-> BOCWM 自动同步覆盖中银理财自有产品（2,082 个）；代销产品可通过前端排行榜页面手动设置风险等级（source='manual'）。排行筛选支持多选风险等级及"未定义风险等级"。
+> BOCWM 自动同步覆盖中银理财自有产品（2,082 个）；代销产品可通过前端排行榜页面手动设置风险等级（source='manual'）。排行筛选支持多选风险等级（含"未定义"）及多选封闭期限（含"未定义期限"）。
 
 ### 产品分类
 

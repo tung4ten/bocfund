@@ -1,3 +1,29 @@
+## 2026-02-27 06:30:00
+
+### 1. 高级排名功能
+
+**Change Type**: feature
+
+> **Purpose**: 新增高级排名功能，允许用户根据不同的时间周期（例如30天、90天、一年）计算年化收益率，并对理财产品进行排名。
+> **Detailed Description**: 新增了 `advanced_ranking.py` 路由模块，提供 `/api/ranking/advanced` API 端点。该端点接受 `time_period_days` 参数，通过查询历史净值数据计算指定周期内的年化收益率。前端新增了 `AdvancedRanking.vue` 页面，提供输入框让用户指定时间周期，并以表格形式展示排名结果。
+> **Reason for Change**: 用户希望能够筛选出在特定时间段内表现优异的理财产品，而不仅仅是基于7日年化收益率。
+> **Impact Scope**: 新增后端路由和前端页面，对现有功能无影响。
+> **API Changes**: 新增 `GET /api/ranking/advanced`
+
+   ```
+   fund/
+   - web/backend/
+     - main.py                               // refact: 注册 advanced_ranking router
+     - routers/advanced_ranking.py       // add: 高级排名 API
+   - web/frontend/src/
+     - api/index.ts                      // refact: 新增 fetchAdvancedRanking()
+     - views/AdvancedRanking.vue         // add: 高级排名页面
+     - router.ts                         // refact: 添加 /advanced-ranking 路由
+     - App.vue                           // refact: 在导航栏添加入口
+   ```
+
+---
+
 ## 2026-02-10 06:30:00
 
 ### 3. 手动管理风险等级（代销产品支持）

@@ -38,6 +38,13 @@ const currentPath = computed(() => route.path)
             >
               我的持仓
             </router-link>
+            <router-link
+              to="/advanced-ranking"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              :class="currentPath === '/advanced-ranking' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'"
+            >
+              高级排名
+            </router-link>
           </nav>
         </div>
       </div>

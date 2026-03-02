@@ -16,6 +16,7 @@ class ProductSnapshot(BaseModel):
     daily_growth_rate: Optional[float] = None
     day_nav_change: Optional[float] = None      # New: Absolute change in NAV (Unit or Cumulative)
     as_of_date: date
+    period_days: Optional[int] = None
     annualized_7d_source: Optional[str] = None  # "direct" | "calculated" | None
     risk_level: Optional[str] = None            # "R1" | "R2" | "R3" | "R4" | "R5" | None
     risk_label: Optional[str] = None            # "低风险" | "中低风险" | "中风险" | "中高风险" | None
