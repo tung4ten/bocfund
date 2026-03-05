@@ -22,7 +22,7 @@ export interface ProductSnapshot {
   risk_label: string | null
   lockup_period_text: string | null
   lockup_period_days: number | null
-  lockup_period_source: 'name' | null
+  lockup_period_source: 'manual' | 'name' | null
 }
 
 export interface HistoryPoint {
@@ -37,6 +37,10 @@ export interface ProductHistory {
   product_code: string
   product_name: string
   history: HistoryPoint[]
+  risk_level?: string | null
+  lockup_period_text?: string | null
+  lockup_period_days?: number | null
+  lockup_period_source?: 'manual' | 'name' | null
 }
 
 export interface RankingResponse {
@@ -150,7 +154,17 @@ function parseLockupPeriod(productName: string): { text: string; days: number } 
   return null
 }
 
+/** 从产品名称解析封闭期展示文本，供趋势对比等使用 */
+export function getLockupText(productName: string): string | null {
+  const parsed = parseLockupPeriod(productName || '')
+  return parsed?.text ?? null
+}
+
 function withLockupPeriod(item: ProductSnapshot): ProductSnapshot {
+  // 手动设置优先，不覆盖
+  if (item.lockup_period_source === 'manual' && item.lockup_period_text) {
+    return { ...item, lockup_period_source: 'manual' }
+  }
   const parsed = parseLockupPeriod(item.product_name || '')
   if (!parsed) {
     return {
@@ -226,6 +240,20 @@ export async function setRiskLevel(productCode: string, riskLevel: string) {
 
 export async function deleteRiskLevel(productCode: string) {
   const { data } = await api.delete(`/risk-levels/${productCode}`)
+  return data
+}
+
+// ---- Lockup Period management ----
+export async function setLockupPeriod(productCode: string, lockupPeriodText: string, lockupPeriodDays?: number) {
+  const { data } = await api.put(`/lockup-periods/${productCode}`, {
+    lockup_period_text: lockupPeriodText,
+    lockup_period_days: lockupPeriodDays ?? undefined,
+  })
+  return data
+}
+
+export async function deleteLockupPeriod(productCode: string) {
+  const { data } = await api.delete(`/lockup-periods/${productCode}`)
   return data
 }
 

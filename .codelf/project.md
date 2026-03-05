@@ -43,25 +43,25 @@
 
 **后端开发模式** (自动重载):
 ```bash
-cd /opt/bocfound
+cd /opt/bocfund
 python3 -m uvicorn fund.web.backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **前端开发模式** (Vite dev server + API 代理):
 ```bash
-cd /opt/bocfound/fund/web/frontend
+cd /opt/bocfund/fund/web/frontend
 npm run dev
 ```
 
 **生产模式** (前端打包 + FastAPI 托管静态文件):
 ```bash
-cd /opt/bocfound/fund/web/frontend && npm run build
-cd /opt/bocfound && python3 -m uvicorn fund.web.backend.main:app --host 0.0.0.0 --port 8000
+cd /opt/bocfund/fund/web/frontend && npm run build
+cd /opt/bocfund && python3 -m uvicorn fund.web.backend.main:app --host 0.0.0.0 --port 8000
 ```
 
 **爬虫手动执行**:
 ```bash
-cd /opt/bocfound
+cd /opt/bocfund
 python3 -m fund.boc_scraper.cli                    # 全量抓取（完成后自动同步风险等级）
 python3 -m fund.boc_scraper.cli --skip-risk-sync   # 全量抓取，跳过风险等级同步
 python3 -m fund.boc_scraper.cli --dry-run           # 测试模式
@@ -70,14 +70,14 @@ python3 -m fund.boc_scraper.export_excel            # 导出 Excel
 
 **风险等级同步**:
 ```bash
-cd /opt/bocfound
+cd /opt/bocfund
 python3 -m fund.boc_scraper.sync_risk_levels        # 增量同步（仅补全新产品）
 python3 -m fund.boc_scraper.sync_risk_levels --full  # 全量刷新 BOCWM 数据
 ```
 
 **Docker 部署**:
 ```bash
-cd /opt/bocfound/fund
+cd /opt/bocfund/fund
 docker-compose up --build
 ```
 
@@ -87,7 +87,7 @@ docker-compose up --build
 > 核心项目代码在 fund/ 目录下。.venv/ 是 Windows 旧虚拟环境（不在 Linux 上使用），qoder-rules/ 是编码规范文档。
 
 ```
-root (/opt/bocfound)
+root (/opt/bocfund)
 - .codelf/                          # 项目文档（本文件所在目录）
 - .venv/                            # [不使用] Windows 旧虚拟环境，Linux 下使用系统 Python
 - qoder-rules/                      # [参考] 编码规范文档集合

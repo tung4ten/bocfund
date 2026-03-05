@@ -30,3 +30,16 @@
 - **Portfolio Logic**: `portfolio.py` now merges static `portfolio.json` codes with dynamic transaction codes for a unified view.
 - **Cleanup**: Removed hardcoded default products from `portfolio.json` to show only user-specific holdings.
 - **Advanced Ranking**: Backend now合并风险等级并返回区间天数，前端展示风险、区间与净值指标。
+- **Deployment Path**: Project runtime path has been switched from `/opt/bocfound` to `/opt/bocfund` with compatibility symlink preserved.
+
+## [Recent Fixes & Enhancements]
+
+### Fixed
+- **Lockup Period Parsing** (`api/index.ts` — `parseLockupPeriod()`):
+    - Now correctly identifies 11+ name patterns: 日开 / 日日开 / 每日开放, Chinese-numeral months (三个月持有), parenthesized period (（9个月）最短持有期, （1年）最短持有期 with embedded spaces), keyword±digits in both orders, and fallback digit scan when lockup keyword is present.
+    - **Exclusion**: 月月开 / 季季开 / 开放式 are redemption frequency terms, NOT treated as lockup periods.
+    - Added pattern for 最低持有 (e.g. 7天最低持有 → 7天).
+
+### Added
+- **Advanced Ranking — Lockup Filter "未定义期限"**: Added an "未定义期限" option to the lockup period filter, allowing users to isolate products whose names contain no parseable lockup period.
+- **Advanced Ranking — Pagination**: Table now renders 100 rows per page with full prev/next/page-number controls; rank indices continue correctly across pages. Resolves browser lag when displaying thousands of products.

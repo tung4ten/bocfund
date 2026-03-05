@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_DIST_DIR, get_db
-from .routers import ranking, advanced_ranking, products, portfolio, transactions, risk_levels
+from .routers import ranking, advanced_ranking, products, portfolio, transactions, risk_levels, lockup_levels
 
 app = FastAPI()
 
@@ -24,6 +24,7 @@ app.include_router(products.router)
 app.include_router(portfolio.router)
 app.include_router(transactions.router)
 app.include_router(risk_levels.router)
+app.include_router(lockup_levels.router)
 
 dist_dir = Path(FRONTEND_DIST_DIR)
 assets_dir = dist_dir / "assets"
@@ -45,7 +46,20 @@ def spa_fallback(full_path: str):
 
 @app.on_event("startup")
 def startup():
-    pass
+    from sqlalchemy import text
+    from .config import get_engine
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_lockup_periods (
+                product_code VARCHAR(64) PRIMARY KEY,
+                lockup_period_text VARCHAR(32) NOT NULL,
+                lockup_period_days INTEGER,
+                source VARCHAR(20) NOT NULL DEFAULT 'manual',
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.commit()
 
 @app.on_event("shutdown")
 def shutdown():

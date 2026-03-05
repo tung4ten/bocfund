@@ -156,6 +156,7 @@ def get_advanced_ranking(
         codes = [item.product_code for item in results]
         placeholders = ",".join([f":c{i}" for i in range(len(codes))])
         params = {f"c{i}": code for i, code in enumerate(codes)}
+
         rows = db.execute(
             text(
                 f"SELECT product_code, risk_level, risk_label "
@@ -164,9 +165,25 @@ def get_advanced_ranking(
             params,
         ).fetchall()
         risk_map = {r[0]: (r[1], r[2]) for r in rows}
+
+        try:
+            lp_rows = db.execute(
+                text(
+                    f"SELECT product_code, lockup_period_text, lockup_period_days "
+                    f"FROM product_lockup_periods WHERE product_code IN ({placeholders})"
+                ),
+                params,
+            ).fetchall()
+            lockup_map = {r[0]: (r[1], r[2]) for r in lp_rows}
+        except Exception:
+            lockup_map = {}
+
         for item in results:
             if item.product_code in risk_map:
                 item.risk_level, item.risk_label = risk_map[item.product_code]
+            if item.product_code in lockup_map:
+                item.lockup_period_text, item.lockup_period_days = lockup_map[item.product_code]
+                item.lockup_period_source = "manual"
 
     results.sort(key=lambda x: x.annualized_7d or 0, reverse=True)
 

@@ -133,8 +133,39 @@ def get_portfolio(db: Session = Depends(get_db)):
             daily_growth_rate=curr[6],
             as_of_date=curr[7],
             day_nav_change=day_change,
-            annualized_7d_source=ann_source
+            annualized_7d_source=ann_source,
         ))
+        
+    # 填充风险等级与封闭期限（手动设置）
+    if items:
+        try:
+            risk_rows = db.execute(
+                text(
+                    f"SELECT product_code, risk_level, risk_label FROM product_risk_levels "
+                    f"WHERE product_code IN ({placeholders})"
+                ),
+                params,
+            ).fetchall()
+            risk_map = {r[0]: (r[1], r[2]) for r in risk_rows}
+        except Exception:
+            risk_map = {}
+        try:
+            lp_rows = db.execute(
+                text(
+                    f"SELECT product_code, lockup_period_text, lockup_period_days "
+                    f"FROM product_lockup_periods WHERE product_code IN ({placeholders})"
+                ),
+                params,
+            ).fetchall()
+            lockup_map = {r[0]: (r[1], r[2]) for r in lp_rows}
+        except Exception:
+            lockup_map = {}
+        for p in items:
+            if p.product_code in risk_map:
+                p.risk_level, p.risk_label = risk_map[p.product_code]
+            if p.product_code in lockup_map:
+                p.lockup_period_text, p.lockup_period_days = lockup_map[p.product_code]
+                p.lockup_period_source = "manual"
         
     items.sort(key=lambda p: json_order.get(p.product_code, 9999))
 

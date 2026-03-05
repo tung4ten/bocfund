@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================
 # 每日定时任务：抓取净值数据 + 同步风险等级（全量模式覆盖）
-# crontab: 0 8 * * * /opt/bocfound/fund/cron_scrape.sh
+# crontab: 0 8 * * * /opt/bocfund/fund/cron_scrape.sh
 # (UTC 08:00 = 北京时间 16:00)
 # ============================================================
 set -euo pipefail
 
-PROJECT_DIR="/opt/bocfound"
+PROJECT_DIR="/opt/bocfund"
 LOG_DIR="${PROJECT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/cron_scrape.log"
 PYTHON="/usr/bin/python3"

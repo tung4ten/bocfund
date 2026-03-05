@@ -176,8 +176,33 @@
               <td class="py-2.5 px-4 text-center text-gray-500">
                 {{ item.period_days ?? timePeriodDays }}
               </td>
-              <td class="py-2.5 px-4 text-center text-gray-500">
-                {{ formatLockup(item) }}
+              <td class="py-2.5 px-4 text-center" @click.stop>
+                <select
+                  v-if="editingLockupCode === item.product_code"
+                  :value="item.lockup_period_text || ''"
+                  @change="onLockupSelect($event, item)"
+                  @blur="onLockupBlur"
+                  class="px-1 py-0.5 border border-indigo-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  autofocus
+                >
+                  <option v-for="opt in lockupEditOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-indigo-300 rounded px-1.5 py-0.5 transition-shadow"
+                  title="点击设置或修改封闭期限"
+                  @click="openLockupEdit($event, item.product_code)"
+                >
+                  <span :class="formatLockup(item) ? 'text-gray-700' : 'text-gray-400'">{{ formatLockup(item) || '未定义' }}</span>
+                  <span
+                    v-if="item.lockup_period_source"
+                    class="text-[10px] px-1 rounded"
+                    :class="item.lockup_period_source === 'manual' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'"
+                  >{{ item.lockup_period_source === 'manual' ? '手动' : '解析' }}</span>
+                  <span v-else class="text-[10px] text-gray-300">+</span>
+                </span>
               </td>
               <td class="py-2.5 px-4 text-right font-semibold" :class="(item.annualized_7d ?? 0) >= 1.2 ? 'text-red-500' : 'text-blue-600'">
                 {{ item.annualized_7d != null ? item.annualized_7d.toFixed(4) + '%' : '-' }}
@@ -287,6 +312,8 @@ import {
   fetchProductHistory,
   setRiskLevel,
   deleteRiskLevel,
+  setLockupPeriod,
+  deleteLockupPeriod,
   type ProductSnapshot,
   type ProductHistory,
 } from '../api'
@@ -301,6 +328,7 @@ const searchQuery = ref('')
 const selectedCodes = ref<Set<string>>(new Set())
 const riskFilters = ref<string[]>([])
 const editingRiskCode = ref<string | null>(null)
+const editingLockupCode = ref<string | null>(null)
 const expandedCode = ref<string | null>(null)
 const expandedHistory = ref<ProductHistory | null>(null)
 const expandLoading = ref(false)
@@ -323,6 +351,16 @@ const riskEditOptions = [
   { value: 'R5', label: 'R5 高风险' },
 ]
 
+const lockupEditOptions = [
+  { value: '', label: '清除' },
+  { value: '日开', label: '日开', days: 1 },
+  { value: '7天', label: '7天', days: 7 },
+  { value: '14天', label: '14天', days: 14 },
+  { value: '30天', label: '30天', days: 30 },
+  { value: '90天', label: '90天', days: 90 },
+  { value: '180天', label: '180天', days: 180 },
+]
+
 const timePeriodOptions = [
   { value: '7d', label: '七天', days: 7 },
   { value: '14d', label: '两周', days: 14 },
@@ -334,6 +372,7 @@ const lockupOptions = [
   { value: '7d', label: '七天', days: 7 },
   { value: '14d', label: '两周', days: 14 },
   { value: '30d', label: '一个月', days: 30 },
+  { value: '90d', label: '九十天', days: 90 },
   { value: 'UNDEFINED', label: '未定义期限', days: -1 },
 ]
 
@@ -529,6 +568,37 @@ async function onRiskSelect(e: Event, item: ProductSnapshot) {
 
 function onRiskBlur() {
   setTimeout(() => { editingRiskCode.value = null }, 150)
+}
+
+function openLockupEdit(e: Event, code: string) {
+  e.stopPropagation()
+  editingLockupCode.value = code
+}
+
+async function onLockupSelect(e: Event, item: ProductSnapshot) {
+  const val = (e.target as HTMLSelectElement).value
+  editingLockupCode.value = null
+  try {
+    if (val === '') {
+      await deleteLockupPeriod(item.product_code)
+      item.lockup_period_text = null
+      item.lockup_period_days = null
+      item.lockup_period_source = null
+    } else {
+      const opt = lockupEditOptions.find(o => o.value === val)
+      const days = opt && typeof opt === 'object' && 'days' in opt ? opt.days : undefined
+      await setLockupPeriod(item.product_code, val, days)
+      item.lockup_period_text = val
+      item.lockup_period_days = days ?? null
+      item.lockup_period_source = 'manual'
+    }
+  } catch (err) {
+    console.error('设置封闭期限失败', err)
+  }
+}
+
+function onLockupBlur() {
+  setTimeout(() => { editingLockupCode.value = null }, 150)
 }
 
 async function toggleExpand(code: string) {

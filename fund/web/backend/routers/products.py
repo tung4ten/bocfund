@@ -69,7 +69,7 @@ def compare_products(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
 ):
-    """多产品历史数据对比。"""
+    """多产品历史数据对比。时间窗口以各产品最新可用日期的公共参照日为锚点，减少节假日缺数据。"""
     code_list = [c.strip() for c in codes.split(",") if c.strip()]
     if not code_list:
         return CompareResponse(series=[])
@@ -78,13 +78,24 @@ def compare_products(
     params = {f"c{i}": c for i, c in enumerate(code_list)}
     params["days"] = days
 
+    # 各产品取最新日期，再取 MIN 作为公共参照日，确保所有产品在该窗口内均有数据
     sql = text(
-        f"SELECT product_code, product_name, as_of_date, "
-        f"       annualized_7d_or_growth, income_per_10k, cumulative_nav, daily_growth_rate "
-        f"FROM boc_nav_records "
-        f"WHERE product_code IN ({placeholders}) "
-        f"  AND as_of_date >= date('now', '-' || :days || ' days') "
-        f"ORDER BY product_code, as_of_date"
+        f"WITH LatestPerProduct AS ("
+        f"  SELECT product_code, MAX(as_of_date) AS max_date "
+        f"  FROM boc_nav_records WHERE product_code IN ({placeholders}) "
+        f"  GROUP BY product_code"
+        f"), "
+        f"RefDate AS ("
+        f"  SELECT MIN(max_date) AS ref_date FROM LatestPerProduct"
+        f") "
+        f"SELECT n.product_code, n.product_name, n.as_of_date, "
+        f"       n.annualized_7d_or_growth, n.income_per_10k, n.cumulative_nav, n.daily_growth_rate "
+        f"FROM boc_nav_records n "
+        f"CROSS JOIN RefDate "
+        f"WHERE n.product_code IN ({placeholders}) "
+        f"  AND n.as_of_date >= date((SELECT ref_date FROM RefDate), '-' || :days || ' days') "
+        f"  AND n.as_of_date <= (SELECT ref_date FROM RefDate) "
+        f"ORDER BY n.product_code, n.as_of_date"
     )
 
     rows = db.execute(sql, params).fetchall()
@@ -108,6 +119,32 @@ def compare_products(
                 daily_growth_rate=r[6],
             )
         )
+
+    # 拉取风险等级与封闭期限并填充
+    risk_rows = db.execute(
+        text(
+            f"SELECT product_code, risk_level FROM product_risk_levels "
+            f"WHERE product_code IN ({placeholders})"
+        ),
+        params,
+    ).fetchall()
+    risk_map = {row[0]: row[1] for row in risk_rows}
+    try:
+        lp_rows = db.execute(
+            text(
+                f"SELECT product_code, lockup_period_text, lockup_period_days "
+                f"FROM product_lockup_periods WHERE product_code IN ({placeholders})"
+            ),
+            params,
+        ).fetchall()
+        lockup_map = {r[0]: (r[1], r[2]) for r in lp_rows}
+    except Exception:
+        lockup_map = {}
+    for s in grouped.values():
+        s.risk_level = risk_map.get(s.product_code)  # type: ignore
+        if s.product_code in lockup_map:
+            s.lockup_period_text, s.lockup_period_days = lockup_map[s.product_code]
+            s.lockup_period_source = "manual"
 
     # 按请求顺序排列
     order = {c: i for i, c in enumerate(code_list)}

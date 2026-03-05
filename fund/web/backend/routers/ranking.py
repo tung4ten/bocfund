@@ -174,9 +174,12 @@ def get_top50(
                m.as_of_date,
                m.source,
                rl.risk_level,
-               rl.risk_label
+               rl.risk_label,
+               lp.lockup_period_text,
+               lp.lockup_period_days
         FROM merged m
         LEFT JOIN product_risk_levels rl ON m.product_code = rl.product_code
+        LEFT JOIN product_lockup_periods lp ON m.product_code = lp.product_code
         WHERE m.effective_7d IS NOT NULL
           AND m.effective_7d > 0
           {risk_filter_clause}
@@ -200,6 +203,9 @@ def get_top50(
             annualized_7d_source=r[8],
             risk_level=r[9],
             risk_label=r[10],
+            lockup_period_text=r[11] if len(r) > 11 else None,
+            lockup_period_days=r[12] if len(r) > 12 else None,
+            lockup_period_source="manual" if len(r) > 11 and r[11] else None,
         )
         for r in rows
     ]

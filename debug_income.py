@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 from decimal import Decimal
 
-DB_PATH = '/opt/bocfound/fund/data/boc_nav.sqlite3'
+DB_PATH = '/opt/bocfund/fund/data/boc_nav.sqlite3'
 
 def debug_calc():
     conn = sqlite3.connect(DB_PATH)
